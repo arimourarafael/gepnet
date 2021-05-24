@@ -1,5 +1,7 @@
 <?php
 
+require('calendar.php');
+
 class App_Gantt_Gantti
 {
 
@@ -15,27 +17,19 @@ class App_Gantt_Gantti
     var $seconds = 0;
     var $year = null;
     var $totalDaysRange = 0;
-    private $feriados = array();
-
-    var $servicoAtividadeCronograma;
 
     const semana7dias = 7;
 
     function __construct($data, $params = array())
     {
-        $this->servicoAtividadeCronograma = new Projeto_Service_AtividadeCronograma();
-
         $options = $this->setOptionsGannt($params);
 
         $this->options = $options;
-        $this->cal = new App_Gantt_Calendar_Calendar();
+        $this->cal = new Calendar();
         $this->data = $data;
         $this->seconds = 60 * 60 * 24;
 
         $this->cellstyle = 'style="width: ' . $this->options['cellwidth'] . 'px; height: ' . $this->options['cellheight'] . 'px"';
-
-        // get all holydays in year
-        $this->feriados = Projeto_Service_AtividadeCronograma::getFeriados();
 
         // parse data and find first and last date
         $this->parse();
@@ -102,29 +96,9 @@ class App_Gantt_Gantti
     {
 
         foreach ($this->data as $d) {
-            $diasLabel = 0;
-            $entradaDias['datainicio'] = new Zend_Date($d['start'], 'd/m/Y');
-            $entradaDias['datafim'] = new Zend_Date($d['end'], 'd/m/Y');
-
-            $date1 = new DateTime($d['start']);
-            $date2 = new DateTime($d['end']);
-            $interval = $date1->diff($date2);
-            $diasGrafico = $interval->days + 1;
-
-            $diasLabel = $this->servicoAtividadeCronograma->retornaQtdeDiasUteisEntreDatas($entradaDias);
-//            Zend_Debug::dump($diasLabel);
-
-            $tooltipContent = (null == !$d['domatividade'] ? constant('Projeto_Model_Atividadecronograma::TIPO_ATIVIDADE_' . $d['domatividade']) . '<br>' : '') .
-//                $d['label'] . '<br>' .
-//                (int)$diasLabel . ' dia(s)<br>' .
-                $date1->format('d/m/Y') . ' - ' . $date2->format('d/m/Y') . '<br>' .
-                (isset($d['progress']) ? $d['progress'] . '% concluído' : '');
-
-
             $this->blocks[] = array(
                 'idatividade' => $d['idatividade'],
                 'label' => $d['label'],
-                'tooltip' => $tooltipContent,
                 'domatividade' => $d['domatividade'],
                 'idgrupo' => $d['idgrupo'],
                 'start' => $start = strtotime($d['start']),
@@ -134,8 +108,6 @@ class App_Gantt_Gantti
                 'progress' => @$d['progress'],
                 'tipoAtividade' => @$d['tipoAtividade'],
                 'idpredecessora' => @$d['idpredecessora'],
-                'diasLabel' => $diasLabel,
-                'diasGrafico' => $diasGrafico,
             );
             if (!$this->first || (!empty($start) && $this->first > $start)) {
                 $this->first = $start;
@@ -284,9 +256,8 @@ class App_Gantt_Gantti
 
                 $weekend = ($day->isWeekend()) ? ' weekend' : '';
                 $today = ($day->isToday()) ? ' today' : '';
-                $holiday = ($this->isHoliday($day)) ? ' holiday' : '';
 
-                $html .= '<li class="gantt-day wrapstyle' . $weekend . $today . $holiday . '"><span class="cellstyle">' . $day->padded() . '</span></li>';
+                $html .= '<li class="gantt-day wrapstyle' . $weekend . $today . '"><span class="cellstyle">' . $day->padded() . '</span></li>';
             }
             $html .= '</ul>';
         }
@@ -306,7 +277,6 @@ class App_Gantt_Gantti
         $html = '';
         // main items
         $html .= '<ul class="gantt-items totalstyle">';
-//        var_dump($this->blocks);die;
         foreach ($this->blocks as $i => $block) {
             if (($block['node'] == 'nivel2') || (($block['node'] == 'nivel3'))) {
                 if (($block['node'] == 'nivel2')) {
@@ -327,14 +297,14 @@ class App_Gantt_Gantti
                     }
                     $html .= '</div></div></div>';
                 }
-                $html .= '<div id="accordion' . $contGrp . 'p" class="accordion">'
+                $html .= '<div id="accordion' . $contGrp . 'p" class="accordion" style="">'
                     . '<div class="accordion-group">';
             } else {
-                $html .= ($contEnAt == 0 ? '<div id="collapse' . $contGrp . 'p" class="accordion-body in collapse">' : '');
+                $html .= ($contEnAt == 0 ? '<div id="collapse' . $contGrp . 'p" class="accordion-body in collapse" style="height: auto;">' : '');
                 if (($block['domatividade'] == '3') || ($block['domatividade'] == '4')) {
                     if ($grpAt) {
                         $html .= '';
-                        $html .= '<div id="accordion' . $contGrpAtiv++ . 'enp" class="accordion">'
+                        $html .= '<div id="accordion' . $contGrpAtiv++ . 'enp" class="accordion" style="">'
                             . '<div class="accordion-group">';
                         $grpAt = false;
                     }
@@ -350,37 +320,33 @@ class App_Gantt_Gantti
             }
 
             //$html .= '<li idIt="'.$contEnAt.'" idGrp="'.$contGrp.'" class="gantt-item" style="height: auto;" >'
-            $html .= '<li class="gantt-item">'
+            $html .= '<li class="gantt-item" style="height: auto;" >'
                 . ($Grp ? '<div class="accordion-menu accordion-menup" data-toggle="collapse" data-parent="#accordion' . $contGrp . 'p"  name="collapse' . ++$contGrp . 'p" href="#collapse' . $contGrp . 'p" style="line-height: auto;height: auto;">' : "")
                 . (($Entr) && ($block['domatividade'] == '2') ? '<div class="accordion-menuenp" data-toggle="collapse" data-parent="#accordion' . ($contGrpAtiv - 1) . 'enp"  name="accordion' . ($contGrpAtiv) . 'en" href="#accordion' . ($contGrpAtiv) . 'enp" style="line-height: auto;height: auto;">' : "");
 
             // days
-            $html .= '<ul class="gantt-days">';
+            $html .= '<ul class="gantt-days" styles="line-height: 32px;height: 32px;">';
 
             if (isset($this->options['show_header_type']) && $this->options['show_header_type'] == 4) {
                 foreach ($this->days as $day) {
                     $weekend = ($day->isWeekend()) ? ' weekend' : '';
                     $today = ($day->isToday()) ? ' today' : '';
-                    $holiday = ($this->isHoliday($day)) ? ' holiday' : '';
 
-                    $html .= '<li class="gantt-day wrapstyle ' . $weekend . $today . $holiday . '"><span class="cellstyle"></span></li>';
+                    $html .= '<li class="gantt-day wrapstyle ' . $weekend . $today . '" style="width: 19.954px;"><span class="cellstyle" styles="line-height: 32px;height: 32px;"></span></li>';
                 }
             } else {
                 //se for a opcao for mostrar tudo no cabecalho renderiza os dias e uma unica <li> para melhorar a performance na renderizacao
-                $html .= '<li class="gantt-day totalstyle largura-total">'
-                    . '<span class="cellstyle"></span></li>';
+                $html .= '<li class="gantt-day totalstyle largura-total" styles="line-height: 32px;height: 32px;">'
+                    . '<span class="cellstyle" styles="line-height: 32px;height: 32px;"></span></li>';
             }
             $html .= '</ul>' . ($Grp ? "</div>" : "");
 
             // the block
-            //Zend_Debug::dump($block['end']);exit;
-            //$days = (($block['end'] - $block['start']) / $this->seconds);
-            $daysLabels = $block['diasLabel'];
-            $daysGraphic = $block['diasGrafico'];
+            $days = (($block['end'] - $block['start']) / $this->seconds);
             $offset = (($block['start'] - $this->first->month()->timestamp) / $this->seconds);
             $top = round($i * ($this->options['cellheight'] + 1));
             $left = round($offset * $this->options['cellwidth']);
-            $width = round(($daysGraphic) * $this->options['cellwidth'] - 9);
+            $width = round(($days + 1) * $this->options['cellwidth'] - 9);
             $height = round($this->options['cellheight'] - 8);
             $progress = $block['progress'] ?: 100; //define o percentual da barra progresso
             //define a cor da barra de progresso
@@ -388,7 +354,7 @@ class App_Gantt_Gantti
 
             //Monta o marco com tamanho fixo de 1 dia
             if ($block['tipoAtividade'] == Projeto_Model_Atividadecronograma::TIPO_ATIVIDADE_MARCO) {
-                $html .= '<div class="gantt-block progress ' . $class . '" style="left: ' . $left . 'px; width: ' . $this->options['cellwidth'] . 'px; height: ' . $height . 'px" data-html="true" data-content="' . $block['tooltip'] . '" title="' . $block['label'] . '" data-placement="top" data-trigger="hover" data-container="body">'
+                $html .= '<div class="gantt-block progress ' . $class . '" style="left: ' . $left . 'px; width: ' . $this->options['cellwidth'] . 'px; height: ' . $height . 'px" title="Marco - ' . $block['label'] . '" data-placement="top" data-trigger="hover">'
                     . '<span class="bar" style="width: ' . $this->options['cellwidth'] . 'px">'
                     . '<i class="icon-flag"></i>'
                     . '</div>';
@@ -412,10 +378,12 @@ class App_Gantt_Gantti
                 }
 
                 //monta barra de progresso
-                $html .= '<div class="gantt-block progress ' . $class . ' bar" style="left: ' . $left . 'px; width: ' . $width . 'px; height: ' . $height . 'px" '
-                    . 'data-placement="top" data-trigger="hover" data-container="body" data-html="true" data-content="' . $block['tooltip'] . '" title="' . $block['label'] . '">'
-//                    . 'data-placement="top" data-trigger="hover" data-content="' . ((int)$daysLabels ) . ' dia(s)' . $percentual . '" title="' . $block['label'] . '">'
-                    . '<strong class="gantt-block-label" style="width: ' . $progress . '%;"></strong>'
+                $html .= '<div class="gantt-block progress ' . $class . '" style="left: ' . $left . 'px; width: ' . $width . 'px; height: ' . $height . 'px" '
+                    . 'data-placement="top" data-trigger="hover" data-content="' . ((int)$days + 1) . ' dia(s)' . $percentual . '" title="' . $block['label'] . '">'
+                    . '<strong class="gantt-block-label bar" style="width: ' . $progress . '%;">'
+                    . ((int)$days + 1) . ' dia(s)'
+                    . $percentual
+                    . '</strong>'
                     . '</div>';
             }
             $html .= (($Entr) && ($block['domatividade'] == '2') ? "</div>" : "");
@@ -453,14 +421,8 @@ class App_Gantt_Gantti
         while ($i > 0) {
             if ($this->blocks[$i]['idatividade'] == $idpredecessora) {
 
-                $entradaDiasPre['datainicio'] = new Zend_Date($this->blocks[$i]['start'], 'd/m/Y');
-                $entradaDiasPre['datafim'] = new Zend_Date($this->blocks[$i]['end'], 'd/m/Y');
-
-                $diasPre = $this->servicoAtividadeCronograma->retornaQtdeDiasUteisEntreDatas($entradaDiasPre);
-
                 //informacoes da atividade predecessora para calcular o link
-//                $daysPre = (($this->blocks[$i]['end'] - $this->blocks[$i]['start']) / $this->seconds);
-                $daysPre = $diasPre;
+                $daysPre = (($this->blocks[$i]['end'] - $this->blocks[$i]['start']) / $this->seconds);
                 $offsetPre = (($this->blocks[$i]['start'] - $this->first->month()->timestamp) / $this->seconds);
                 $topPre = round($i * ($this->options['cellheight'] + 1));
                 $leftPre = round($offsetPre * $this->options['cellwidth']);
@@ -625,15 +587,13 @@ class App_Gantt_Gantti
 
         // set a title if available
         if ($this->options['title']) {
-            $html[] = '<figcaption><span>Grupo/Entrega/Atividade/Marco</span>'
-                . '<span>Início - Fim(Realizado)</span></figcaption>';
+            $html[] = '<figcaption><span style="font-size:14px;font-weight: bold;">Grupo/Entrega/Atividade/Marco</span>'
+                . '<span style="font-size:14px;font-weight: bold;margin-left:110px;">Início - Fim(Realizado)</span></figcaption>';
         }
 
         // sidebar with labels
         $html[] = '<aside>';
-        $html[] = '<div id="aside-label"><span>Grupo/Entrega/Atividade/Marco</span>'
-            . '<span>Início - Fim(Realizado)</span></div>';
-        $html[] = '<ul class="gantt-labels" style="margin-top: ' . (($this->options['cellheight']) - 1) . 'px;">';
+        $html[] = '<ul class="gantt-labels" style="margin-top: ' . (($this->options['cellheight'] * $altura) + 2) . 'px; background-color: #C0C0C0;">';
         $contGrp = 0;
         $contEntr = 0;
         $contLinhaEntr = 0;
@@ -643,28 +603,28 @@ class App_Gantt_Gantti
             switch ($block['node']) {
                 case 'nivel2':
                     $linhaEntrega = "";
-                    $linhaEntrega = ($contEnAt == 0 ? '<div id="collapse' . $contGrp . '" class="accordion-body in collapse">' : '')
+                    $linhaEntrega = ($contEnAt == 0 ? '<div id="collapse' . $contGrp . '" class="accordion-body in collapse" style="height: auto;margin-top1:-0.50px;">' : '')
                         . (($contLinhaEntr > 0) && ($inAtividade) ? '</div></div>' : '')
-                        . '<ul class="gantt-ul-data">'
-                        . '<li class="gantt-label gantt-label-data" title="' . $block['label'] . ' ">'; //(Entrega)
+                        . '<ul class="gantt-ul-data" style="height1: auto; margin-bottom1:-3px;" >'
+                        . '<li class="gantt-label gantt-label-data" title="' . $block['label'] . ' " style="width:329px;line-height: 30.85px;height: 30.85px; margin-bottom1:-3px;">'; //(Entrega)
                     $linkAccordion = '<div class="accordion-menuen" data-toggle="collapse" data-parent="#accordion' . $contEntr . 'en" name="accordion' . ++$contEntr . 'en" href="#accordion' . $contEntr . 'en">';
                     $inAtividade = false;
                     $linhaEntrega .=
                         $linkAccordion
                         . '<div class="nivel2 cellstyle" >'
-                        . '<strong class="gantt-label">'
-                        . '<i class="icon-tag"></i> '
+                        . '<strong class="gantt-label" style="line-height: 30.85px;height: 30.85px;">'
+                        . '<i class="icon-tag"></i>'
                         . $block['label']
                         . '</strong></div></div>'
                         . '</li>'
-                        . '<li class="gantt-label gantt-label-data">'
+                        . '<li class="gantt-label gantt-label-data" style="overflow: hidden;width:262px;white-space: nowrap; line-height: 30.85px;height: 30.85px; margin-bottom1:-3px;">'
                         . $linkAccordion
-                        . '<strong class="gantt-label gantt-label-data">'
+                        . '<strong class="gantt-label gantt-label-data" style="margin-left:-2px;line-height: 30.85px;height: 30.85px;">'
                         . date('d/m/Y', $block['start']) . '&nbsp;-&nbsp;' . date('d/m/Y', $block['end']) . ''
                         . '</strong>'
                         . '</div></li></ul>'
-                        . '<div id="accordion' . $contEntr . 'en" class="accordion">'
-                        . '<div class="accordion-group">';
+                        . '<div id="accordion' . $contEntr . 'en" class="accordion" style="margin-top1:-0.50px;">'
+                        . '<div class="accordion-group" style="margin-top1:-0.50px;">';
                     $html[] = $linhaEntrega;;
                     $contEnAt++;
                     $contLinhaEntr++;
@@ -674,18 +634,18 @@ class App_Gantt_Gantti
                     ($block['tipoAtividade'] == Projeto_Model_Atividadecronograma::TIPO_ATIVIDADE_MARCO) ?
                         $icon = '<i class="icon-flag"></i> ' : $icon = '<i class="icon-list-alt"></i> ';
 
-                    $html[] = ($contEnAt == 0 ? '<div id="collapse' . $contGrp . '" class="accordion-body in collapse">' : '')
-                        . '<ul class="gantt-ul-data">'
-                        . '<li class="gantt-label gantt-label-data" title="' . $block['label'] . ' ">' //(Atividade)
+                    $html[] = ($contEnAt == 0 ? '<div id="collapse' . $contGrp . '" class="accordion-body in collapse" style="height1: auto;margi1-top:-0.50px;">' : '')
+                        . '<ul class="gantt-ul-data" style="height1: auto; margin-bottom1:-3px;" >'
+                        . '<li class="gantt-label gantt-label-data" title="' . $block['label'] . ' " style="width:329px;line-height: 30.85px;height: 30.85px; margin-bottom11:-3px;">' //(Atividade)
                         . '<div class="nivel3 cellstyle" >'
-                        . '<strong class="gantt-label">'
-                        . $icon . '<span class="detail-atividade" id="' . $block['idatividade'] . '" dom="' . $block['domatividade'] . '">'
+                        . '<strong class="gantt-label" style="line-height: 30.85px;height: 30.85px;">'
+                        . $icon . '<span class="detail-atividade" id="' . $block['idatividade'] . '" dom="' . $block['domatividade'] . '" style="line-height: 32px;height: 32px;">'
                         . $block['label'] . '</span>'  //Atividade
                         . '</strong>'
                         . '</li>'
-                        . '<li class="gantt-label gantt-label-data" title="' . $block['label'] . '">'
-                        . '<strong class="gantt-label gantt-label-data">'
-                        . '<span class="detail-atividade" id="' . $block['idatividade'] . '" dom="' . $block['domatividade'] . '">'  //Atividade
+                        . '<li class="gantt-label gantt-label-data" title="' . $block['label'] . '" style="overflow: hidden;width:262px;white-space: nowrap; line-height: 30.85px;height: 30.85px; margin-bottom1:-3px;">'
+                        . '<strong class="gantt-label gantt-label-data" style="margin-left:-2px;line-height: 30.85px;height: 30.85px;">'
+                        . '<span class="detail-atividade" id="' . $block['idatividade'] . '" dom="' . $block['domatividade'] . '" style="line-height: 32px;height: 32px;">'  //Atividade
                         . date('d/m/Y', $block['start']) . '&nbsp;-&nbsp;' . date('d/m/Y', $block['end']) . ''
                         . '</span>'
                         . '</strong>'
@@ -697,19 +657,19 @@ class App_Gantt_Gantti
                     $idGrupoId = $block['idatividade'];
                     $linhaGrupo = "";
                     $linhaGrupo = ($contGrp > 0 ? (($contLinhaEntr > 0) && ($inAtividade) ? '</div></div>' : '') . '</div></div></div>' : '')
-                        . '<div id="accordion' . $contGrp . '" class="accordion">'
-                        . '<div class="accordion-group">'
-                        . '<ul class="gantt-ul-data">'
-                        . '<li class="gantt-label gantt-label-data" title="' . $block['label'] . ' ">'; //[Grupo]
+                        . '<div id="accordion' . $contGrp . '" class="accordion" style="margin-top1:-0.50px;">'
+                        . '<div class="accordion-group" style="margin-top1:-0.50px;">'
+                        . '<ul class="gantt-ul-data" style="height1: auto; margin-bottom1:-3px;" >'
+                        . '<li class="gantt-label gantt-label-data" title="' . $block['label'] . ' " style="width:329px;line-height: 30.85px;height: 30.85px; margin1-bottom:-3px;">'; //[Grupo]
                     $linkAccordion = '<div class="accordion-menu" data-toggle="collapse" data-parent="#accordion' . $contGrp . '" name="collapse' . ++$contGrp . '" href="#collapse' . $contGrp . '">';
                     $linhaGrupo .=
                         $linkAccordion
-                        . '<strong class="gantt-label label-grupo">'
-                        . '<i class="icon-folder-open"></i> ' . $block['label'] . '</strong>'
+                        . '<strong class="gantt-label" style="line-height: 32px;height: 32px;">'
+                        . '<i class="icon-folder-open"></i>' . $block['label'] . '</strong>'
                         . '</div></li>'
-                        . '<li class="gantt-label gantt-label-data">'
+                        . '<li class="gantt-label gantt-label-data" style="overflow: hidden;width:262px;white-space: nowrap; line-height: 30.85px;height: 30.85px; margin1-bottom:-3px;">'
                         . $linkAccordion
-                        . '<strong class="gantt-label gantt-label-data">'
+                        . '<strong class="gantt-label gantt-label-data" style="margin-left:-2px;line-height: 30.85px;height: 30.85px;">'
                         . date('d/m/Y', $block['start']) . '&nbsp;-&nbsp;' . date('d/m/Y', $block['end']) . ''
                         . '</strong>'
                         . '</div></li></ul>';
@@ -726,7 +686,7 @@ class App_Gantt_Gantti
         $html[] = '<section class="gantt-data">';
 
         // data header section
-        $html[] = '<header class="gantt-header">';
+        $html[] = '<header>';
         //exibicao dos meses
         $html[] = $this->renderMesesCabecalho();
         //exibicao das semanas cabecalho
@@ -734,8 +694,8 @@ class App_Gantt_Gantti
         // exibicao dias do cabecalho
         $html[] = $this->renderDiasCabecalho();
         //exibicao dos dias do items
-        $html[] = '</header>';
         $html[] = $this->renderDiasOfItems();
+        $html[] = '</header>';
         $html[] = $this->renderTodayAnotation($altura);
 
         // end data section
@@ -750,12 +710,6 @@ class App_Gantt_Gantti
     function __toString()
     {
         return $this->render();
-    }
-
-    private function isHoliday(App_Gantt_Calendar_CalendarDay $day)
-    {
-        return in_array($day->format('m-d'), $this->feriados, true)
-            || in_array($day->format('Y-m-d'), $this->feriados, true);
     }
 
 }
